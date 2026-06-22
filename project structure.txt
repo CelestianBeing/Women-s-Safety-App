@@ -1,0 +1,30 @@
+safety_route_planner/
+├── app.py                  # Flask application, routes, APIs
+├── config.py               # Configuration
+├── models.py               # SQLAlchemy models
+├── safety_scoring.py       # Edge safety score computation
+├── routing.py              # Safest route algorithm (Dijkstra/A*)
+├── ml_model.py             # AI risk prediction (Random Forest)
+├── utils.py                # Helpers (confidence, twins detection)
+├── requirements.txt
+├── data/
+│   └── graph.pkl           # cached OSM graph (auto-downloaded)
+├── instance/
+│   └── safety.db           # SQLite database
+├── templates/
+│   ├── base.html
+│   ├── index.html
+│   ├── login.html
+│   ├── register.html
+│   ├── dashboard.html
+│   ├── plan_route.html
+│   ├── heatmap.html
+│   └── report.html
+└── static/
+    ├── css/
+    │   └── style.css
+    └── js/
+        ├── main.js
+        ├── route.js
+        ├── heatmap.js
+        └── report.js

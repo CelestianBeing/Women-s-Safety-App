@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Plan Safest Route</h1>
+<p>Click on map to set origin and destination, or use the form below.</p>
+<div id="map" style="height: 500px;"></div>
+<form id="route-form" method="POST" action="/plan_route">
+    <input type="hidden" name="origin_lat" id="origin_lat">
+    <input type="hidden" name="origin_lng" id="origin_lng">
+    <input type="hidden" name="dest_lat" id="dest_lat">
+    <input type="hidden" name="dest_lng" id="dest_lng">
+    <button type="submit">Calculate Safest Route</button>
+</form>
+
+{% if route %}
+<div class="route-result">
+    <h3>Route Details</h3>
+    <p><strong>Average Safety Score:</strong> {{ route.avg_safety }}/100</p>
+    <p><strong>Confidence:</strong> {{ route.avg_confidence }}%</p>
+    <p><strong>Distance:</strong> {{ route.total_distance_m }} meters</p>
+    {% if twins > 0 %}
+    <p><strong>🛡️ Safety Twins:</strong> {{ twins }} verified traveler(s) nearby on a similar route.</p>
+    {% endif %}
+    <p><em>“Route Safety: {{ route.avg_safety }}/100 (Confidence: {{ route.avg_confidence }}%)”</em></p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/route.js') }}"></script>
+<script>
+    initRouteMap({{ geojson|safe if geojson else 'null' }}, {{ origin|tojson if origin else 'null' }}, {{ destination|tojson if destination else 'null' }});
+</script>
+{% endblock %}
