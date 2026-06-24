@@ -1,119 +1,187 @@
+"""
+Edge safety score computation using OSM attributes + community incident reports.
+"""
+import os
+import logging
+from datetime import datetime, timedelta
+
 import osmnx as ox
 import networkx as nx
-import pandas as pd
-import numpy as np
 from geopy.distance import geodesic
-from models import IncidentReport, EdgeSafety, db
-from config import Config
-import json
 
-# Preload graph (cached)
-def load_graph():
-    if not os.path.exists(Config.GRAPH_FILE):
-        print("Downloading street network...")
-        G = ox.graph_from_place(Config.PLACE_NAME, network_type='walk')
-        ox.save_graphml(G, Config.GRAPH_FILE)
-    else:
-        G = ox.load_graphml(Config.GRAPH_FILE)
+from config import Config
+
+logger = logging.getLogger(__name__)
+
+
+# ── Graph loading ────────────────────────────────────────────────────────────
+
+def load_graph() -> nx.MultiDiGraph:
+    """Return cached OSM walk graph, downloading if needed."""
+    os.makedirs(Config.DATA_DIR, exist_ok=True)
+    if os.path.exists(Config.GRAPH_FILE):
+        logger.info("Loading cached graph from %s", Config.GRAPH_FILE)
+        return ox.load_graphml(Config.GRAPH_FILE)
+    logger.info("Downloading street network for '%s'…", Config.PLACE_NAME)
+    G = ox.graph_from_place(Config.PLACE_NAME, network_type='walk')
+    ox.save_graphml(G, Config.GRAPH_FILE)
+    logger.info("Graph saved (%d nodes, %d edges)", G.number_of_nodes(), G.number_of_edges())
     return G
 
-def calculate_edge_safety(G):
-    """Compute initial safety scores for all edges based on OSM attributes."""
-    # Get amenities
-    police_stations = ox.features_from_place(Config.PLACE_NAME, tags={'amenity': 'police'})
-    hospitals = ox.features_from_place(Config.PLACE_NAME, tags={'amenity': 'hospital'})
-    # For simplicity, use centroids
-    police_points = [(p.geometry.centroid.y, p.geometry.centroid.x) for p in police_stations.itertuples() if hasattr(p, 'geometry')]
-    hospital_points = [(h.geometry.centroid.y, h.geometry.centroid.x) for h in hospitals.itertuples() if hasattr(h, 'geometry')]
 
-    # Build safety scores
-    edge_safety = {}
+# ── Amenity helpers ───────────────────────────────────────────────────────────
+
+def _fetch_amenity_centroids(place: str, tags: dict) -> list[tuple]:
+    """Return list of (lat, lng) for given OSM amenity tags."""
+    try:
+        features = ox.features_from_place(place, tags=tags)
+        pts = []
+        for row in features.itertuples():
+            geom = getattr(row, 'geometry', None)
+            if geom:
+                c = geom.centroid
+                pts.append((c.y, c.x))
+        return pts
+    except Exception as exc:
+        logger.warning("Could not fetch amenity %s: %s", tags, exc)
+        return []
+
+
+def _min_dist(centroid: tuple, points: list[tuple]) -> float:
+    if not points:
+        return 99999.0
+    return min(geodesic(centroid, p).meters for p in points)
+
+
+# ── Score computation ─────────────────────────────────────────────────────────
+
+def calculate_edge_safety(G: nx.MultiDiGraph) -> None:
+    """
+    Compute initial OSM-attribute-based safety scores for all edges and
+    persist them to EdgeSafety table (upsert).  Safe to call multiple times.
+    """
+    # Import here to avoid circular import at module level
+    from models import EdgeSafety, db
+
+    police_pts  = _fetch_amenity_centroids(Config.PLACE_NAME, {'amenity': 'police'})
+    hosp_pts    = _fetch_amenity_centroids(Config.PLACE_NAME, {'amenity': 'hospital'})
+    light_pts   = _fetch_amenity_centroids(Config.PLACE_NAME, {'highway': 'street_lamp'})
+
+    logger.info("Scoring %d edges…", G.number_of_edges())
+
+    # Build lookup for existing rows (avoid N+1 queries)
+    existing: dict[str, EdgeSafety] = {
+        e.edge_key: e for e in EdgeSafety.query.all()
+    }
+
+    new_edges   = []
+    batch_size  = 500
+    count       = 0
+
     for u, v, key, data in G.edges(keys=True, data=True):
-        road_type = data.get('highway', '')
-        road_width = data.get('width', None)
-        if road_width is None:
-            # approximate
-            if road_type in ['primary', 'secondary', 'tertiary']:
-                road_width = 10
-            elif road_type == 'residential':
-                road_width = 6
-            else:
-                road_width = 4
+        edge_key   = f"{u}-{v}-{key}"
+        road_type  = data.get('highway', '')
+        if isinstance(road_type, list):
+            road_type = road_type[0]
 
-        # Base score
-        score = 50
-        # Road type
-        if road_type in ['primary', 'secondary']:
-            score += 10
-        elif road_type == 'residential':
-            score += 5
-        # Wider road safer
+        # --- Road width approximation ---
+        try:
+            road_width = float(str(data.get('width', '')).split()[0])
+        except (ValueError, TypeError, IndexError):
+            width_map = {'primary': 12, 'secondary': 10, 'tertiary': 8,
+                         'residential': 6, 'footway': 3, 'path': 2}
+            road_width = width_map.get(road_type, 4)
+
+        # --- Base score ---
+        score = 50.0
+
+        # Road type bonuses
+        type_bonus = {'primary': 12, 'secondary': 10, 'tertiary': 7,
+                      'residential': 5, 'footway': 3, 'path': -5}
+        score += type_bonus.get(road_type, 0)
+
+        # Width (capped)
         score += min(road_width, 15) * 0.5
 
-        # Proximity to police stations (closer = safer)
-        edge_centroid = ((G.nodes[u]['y'] + G.nodes[v]['y'])/2, (G.nodes[u]['x'] + G.nodes[v]['x'])/2)
-        min_police_dist = 1000
-        if police_points:
-            min_police_dist = min(geodesic(edge_centroid, p).meters for p in police_points)
-        if min_police_dist < 200:
-            score += 15
-        elif min_police_dist < 500:
+        # Sidewalk / lit tags
+        if data.get('sidewalk') in ('both', 'left', 'right', 'yes'):
+            score += 8
+        if data.get('lit') == 'yes':
             score += 10
-        elif min_police_dist < 1000:
-            score += 5
+        elif data.get('lit') == 'no':
+            score -= 8
 
-        # Proximity to hospitals (softer)
-        min_hosp_dist = 1000
-        if hospital_points:
-            min_hosp_dist = min(geodesic(edge_centroid, h).meters for h in hospital_points)
-        if min_hosp_dist < 300:
-            score += 10
-        elif min_hosp_dist < 800:
-            score += 5
+        # Edge centroid
+        cent = (
+            (G.nodes[u]['y'] + G.nodes[v]['y']) / 2,
+            (G.nodes[u]['x'] + G.nodes[v]['x']) / 2,
+        )
 
-        # Subtract based on nearby incident reports (after initial calculation)
-        # We'll apply recent crime data later; start with neutral.
-        # Clamp
-        score = max(1, min(99, score))
-        edge_key = f"{u}-{v}-{key}"
-        edge_safety[edge_key] = score
+        # Proximity bonuses
+        pd = _min_dist(cent, police_pts)
+        score += 15 if pd < 200 else (10 if pd < 500 else (5 if pd < 1000 else 0))
 
-        # Store in DB (initial)
-        existing = EdgeSafety.query.filter_by(edge_key=edge_key).first()
-        if not existing:
-            new_edge = EdgeSafety(edge_key=edge_key, safety_score=score, confidence=20)
-            db.session.add(new_edge)
+        hd = _min_dist(cent, hosp_pts)
+        score += 10 if hd < 300 else (5 if hd < 800 else 0)
+
+        ld = _min_dist(cent, light_pts)
+        score += 8 if ld < 50 else (4 if ld < 150 else 0)
+
+        score = float(max(1, min(99, score)))
+
+        row = existing.get(edge_key)
+        if row:
+            row.safety_score = score
+            row.updated_at   = datetime.utcnow()
+        else:
+            new_edges.append(EdgeSafety(edge_key=edge_key, safety_score=score, confidence=20.0))
+
+        count += 1
+        if count % batch_size == 0:
+            if new_edges:
+                db.session.bulk_save_objects(new_edges)
+                new_edges.clear()
+            db.session.commit()
+            logger.info("  … %d edges processed", count)
+
+    if new_edges:
+        db.session.bulk_save_objects(new_edges)
     db.session.commit()
-    return edge_safety
+    logger.info("Edge safety scores stored (%d total).", count)
 
-def update_safety_from_reports():
-    """Recalculate edge safety scores incorporating recent incident reports."""
-    # Get all reports from last 30 days
-    from datetime import datetime, timedelta
-    recent = IncidentReport.query.filter(IncidentReport.timestamp > datetime.utcnow() - timedelta(days=30)).all()
-    # For each edge, sum severity*weight for proximity
-    edges = EdgeSafety.query.all()
-    for edge in edges:
-        u, v, key = edge.edge_key.split('-')
-        # get centroid from graph
-        # This requires loading graph. For brevity, we'll recompute on route planning.
-        pass
 
-def get_edge_safety(u, v, key, G):
-    """Get current safety score for an edge, with real-time report adjustment."""
+# ── Real-time score lookup ────────────────────────────────────────────────────
+
+def get_edge_safety(u, v, key, G: nx.MultiDiGraph) -> tuple[float, float]:
+    """
+    Return (safety_score, confidence) for an edge, adjusted for recent reports.
+    Reads from DB; falls back to 50/10 if edge not found.
+    """
+    from models import EdgeSafety, IncidentReport
+
     edge_key = f"{u}-{v}-{key}"
-    edge_db = EdgeSafety.query.filter_by(edge_key=edge_key).first()
-    base_score = edge_db.safety_score if edge_db else 50
-    # Reduce score based on nearby recent reports
-    cent = ((G.nodes[u]['y'] + G.nodes[v]['y'])/2, (G.nodes[u]['x'] + G.nodes[v]['x'])/2)
-    from datetime import datetime, timedelta
-    recent_reports = IncidentReport.query.filter(
-        IncidentReport.timestamp > datetime.utcnow() - timedelta(days=7)
+    row = EdgeSafety.query.filter_by(edge_key=edge_key).first()
+    base_score = row.safety_score if row else 50.0
+    confidence = row.confidence   if row else 10.0
+
+    cent = (
+        (G.nodes[u]['y'] + G.nodes[v]['y']) / 2,
+        (G.nodes[u]['x'] + G.nodes[v]['x']) / 2,
+    )
+
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    recent = IncidentReport.query.filter(
+        IncidentReport.timestamp > cutoff,
+        IncidentReport.resolved.is_(False),
     ).all()
-    penalty = 0
-    for rep in recent_reports:
+
+    penalty = 0.0
+    for rep in recent:
         dist = geodesic(cent, (rep.latitude, rep.longitude)).meters
-        if dist < 200:
-            penalty += rep.severity * max(0, 10 - dist/20)
-    final_score = max(1, min(99, base_score - penalty))
-    return final_score, edge_db.confidence if edge_db else 10
+        if dist < 300:
+            # Higher severity + closer proximity = bigger penalty
+            weight    = max(0.0, 1 - dist / 300)
+            penalty  += rep.severity * 4 * weight
+
+    final = float(max(1.0, min(99.0, base_score - penalty)))
+    return final, confidence

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Safety Route Planner — Home{% endblock %}
+{% block content %}
+<div style="text-align:center; padding: 40px 0 20px;">
+  <h1 style="font-size:2.2rem; margin-bottom:12px;">🛡️ Safety-Aware Route Planner</h1>
+  <p style="font-size:1.1rem; color:var(--clr-muted); max-width:600px; margin:0 auto 32px;">
+    Find the safest walking route using OpenStreetMap data, community incident reports,
+    and AI-powered risk prediction. Your safety, informed by your community.
+  </p>
+
+  {% if not current_user.is_authenticated %}
+  <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:40px;">
+    <a href="/register" class="btn btn-accent" style="font-size:1rem; padding:12px 28px;">Get Started</a>
+    <a href="/heatmap"  class="btn btn-secondary" style="font-size:1rem; padding:12px 28px;">View Heatmap</a>
+  </div>
+  {% else %}
+  <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:40px;">
+    <a href="/plan_route" class="btn btn-accent" style="font-size:1rem; padding:12px 28px;">Plan a Route</a>
+    <a href="/heatmap"    class="btn btn-secondary" style="font-size:1rem; padding:12px 28px;">Safety Heatmap</a>
+  </div>
+  {% endif %}
+</div>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:32px;">
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem; margin-bottom:8px;">🗺️</div>
+    <h3>Smart Routing</h3>
+    <p class="text-muted" style="font-size:.9rem; margin-top:8px;">Dijkstra algorithm weighted by real safety scores, not just distance.</p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem; margin-bottom:8px;">📊</div>
+    <h3>Community Reports</h3>
+    <p class="text-muted" style="font-size:.9rem; margin-top:8px;">Live incident data from your neighbourhood feeds directly into route scoring.</p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem; margin-bottom:8px;">🤖</div>
+    <h3>AI Risk Prediction</h3>
+    <p class="text-muted" style="font-size:.9rem; margin-top:8px;">Random Forest model predicts risk based on time, road type, lighting and more.</p>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2rem; margin-bottom:8px;">👥</div>
+    <h3>Safety Twins</h3>
+    <p class="text-muted" style="font-size:.9rem; margin-top:8px;">Know when other verified travellers share your route — safety in numbers.</p>
+  </div>
+</div>
+
+<div class="card" style="border-left: 4px solid var(--clr-warn); background:#fffdf0;">
+  <strong>⚠️ Disclaimer:</strong> All safety scores are estimates based on available data.
+  No route can be guaranteed safe. Always be aware of your surroundings and trust your instincts.
+</div>
+{% endblock %}

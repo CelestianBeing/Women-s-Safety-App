@@ -1,0 +1,19 @@
+# Secrets & environment
+.env
+
+# Database & generated data
+instance/
+data/
+
+# Logs
+logs/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db

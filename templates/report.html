@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Report Incident — Safety Route Planner{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:6px;">📢 Report an Incident</h1>
+<p class="text-muted" style="margin-bottom:16px;">
+  Your report is anonymous to other users and helps improve route safety for everyone.
+</p>
+
+<div class="map-wrapper">
+  <div id="reportMap"></div>
+</div>
+<p id="location-hint" class="map-hint">Click the map to select the incident location.</p>
+
+<div class="card">
+  <form id="reportForm">
+    <input type="hidden" id="lat" />
+    <input type="hidden" id="lng" />
+
+    <div class="form-group">
+      <label for="reportType">Incident Type</label>
+      <select id="reportType">
+        <option value="harassment">Harassment</option>
+        <option value="stalking">Stalking / Being followed</option>
+        <option value="poor_lighting">Poor Lighting</option>
+        <option value="drunk_groups">Intoxicated Groups</option>
+        <option value="suspicious">Suspicious Activity</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="severity">Severity
+        <span class="text-muted" style="font-weight:normal;">(1 = minor, 5 = very serious)</span>
+      </label>
+      <input type="range" id="severity" min="1" max="5" value="2"
+             oninput="document.getElementById('severityDisplay').textContent = this.value"
+             style="padding:0; border:none; background:none; box-shadow:none;" />
+      <span id="severityDisplay" style="font-weight:600;">2</span> / 5
+    </div>
+
+    <div class="form-group">
+      <label for="desc">Description <span class="text-muted" style="font-weight:normal;">(optional)</span></label>
+      <textarea id="desc" maxlength="1000" placeholder="Briefly describe what happened…"></textarea>
+    </div>
+
+    <button type="submit" id="submitBtn" class="btn btn-danger">Submit Report</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window._MAP_CENTER = {{ map_center | tojson }};
+  window._MAP_ZOOM   = {{ map_zoom }};
+</script>
+<script src="{{ url_for('static', filename='js/report.js') }}"></script>
+{% endblock %}

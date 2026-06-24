@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Safety Route Planner{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:16px; margin-bottom:24px; flex-wrap:wrap;">
+  <div>
+    <h1 style="margin-bottom:4px;">Welcome back, {{ current_user.username }} 👋</h1>
+    <p class="text-muted">
+      Status:
+      {% if current_user.is_verified %}
+        <span class="text-safe">✅ Verified traveller</span>
+      {% else %}
+        <span class="text-muted">Unverified</span>
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
+  <a href="/plan_route" class="card" style="text-decoration:none; text-align:center; color:inherit; transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
+    <div style="font-size:2rem; margin-bottom:8px;">🗺️</div>
+    <strong>Plan Route</strong>
+    <p class="text-muted" style="font-size:.85rem; margin-top:4px;">Find safest path</p>
+  </a>
+  <a href="/heatmap" class="card" style="text-decoration:none; text-align:center; color:inherit; transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
+    <div style="font-size:2rem; margin-bottom:8px;">🌡️</div>
+    <strong>Heatmap</strong>
+    <p class="text-muted" style="font-size:.85rem; margin-top:4px;">View community reports</p>
+  </a>
+  <a href="/report" class="card" style="text-decoration:none; text-align:center; color:inherit; transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
+    <div style="font-size:2rem; margin-bottom:8px;">📢</div>
+    <strong>Report Incident</strong>
+    <p class="text-muted" style="font-size:.85rem; margin-top:4px;">Help the community</p>
+  </a>
+  <a href="/guardians" class="card" style="text-decoration:none; text-align:center; color:inherit; transition:box-shadow .2s;" onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.15)'" onmouseout="this.style.boxShadow=''">
+    <div style="font-size:2rem; margin-bottom:8px;">🛡️</div>
+    <strong>Guardians</strong>
+    <p class="text-muted" style="font-size:.85rem; margin-top:4px;">Manage SOS contacts</p>
+  </a>
+</div>
+
+{% if recent_reports %}
+<div class="card">
+  <div class="card-header">📋 Your Recent Reports</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Severity</th>
+        <th>Date</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent_reports %}
+      <tr>
+        <td>{{ r.report_type | replace('_', ' ') | title }}</td>
+        <td>
+          <span style="color: {{'var(--clr-danger)' if r.severity >= 4 else ('var(--clr-warn)' if r.severity >= 2 else 'var(--clr-safe)')}}">
+            {{ '🔴' if r.severity >= 4 else ('🟡' if r.severity >= 2 else '🟢') }} {{ r.severity }}/5
+          </span>
+        </td>
+        <td class="text-muted" style="font-size:.85rem;">{{ r.timestamp.strftime('%d %b %Y, %H:%M') }}</td>
+        <td>
+          {% if r.resolved %}
+            <span class="text-safe">✅ Resolved</span>
+          {% else %}
+            <span class="text-warn">⏳ Open</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center; color:var(--clr-muted);">
+  <p>You haven't submitted any reports yet.</p>
+  <a href="/report" class="btn btn-accent" style="margin-top:12px;">Report an Incident</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Safety Heatmap — Safety Route Planner{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+  <div>
+    <h1 style="margin-bottom:4px;">🌡️ Community Safety Heatmap</h1>
+    <p class="text-muted">Showing up to 500 most recent unresolved incidents.</p>
+  </div>
+  <div style="font-size:.9rem; color:var(--clr-muted);">
+    Reports loaded: <strong id="report-count">—</strong>
+  </div>
+</div>
+
+<div class="map-wrapper">
+  <p id="heatmap-status" class="map-hint" style="text-align:center; padding:10px;">
+    Loading heatmap data…
+  </p>
+  <div id="heatMap"></div>
+</div>
+
+<div style="display:flex; gap:20px; flex-wrap:wrap; font-size:.85rem; margin-top:8px;">
+  <span>🟢 Low risk</span>
+  <span>🟡 Moderate</span>
+  <span>🔴 High risk</span>
+  <span>🔵 Very high</span>
+</div>
+
+{% if current_user.is_authenticated %}
+<div class="card mt-4">
+  <a href="/report" class="btn btn-accent">📢 Report an Incident</a>
+  <span class="text-muted" style="font-size:.85rem; margin-left:12px;">
+    Your reports help keep this map accurate for everyone.
+  </span>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window._MAP_CENTER = {{ map_center | tojson }};
+  window._MAP_ZOOM   = {{ map_zoom }};
+</script>
+<script src="{{ url_for('static', filename='js/heatmap.js') }}"></script>
+{% endblock %}

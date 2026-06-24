@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Plan Route — Safety Route Planner{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:6px;">🗺️ Plan Safest Route</h1>
+<p class="text-muted map-hint">Click the map to set your <strong>origin</strong> first, then your <strong>destination</strong>.</p>
+
+<div class="map-wrapper">
+  <div id="map"></div>
+</div>
+
+<form id="route-form" method="POST" action="/plan_route" style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+  <input type="hidden" name="origin_lat" id="origin_lat" />
+  <input type="hidden" name="origin_lng" id="origin_lng" />
+  <input type="hidden" name="dest_lat"   id="dest_lat"   />
+  <input type="hidden" name="dest_lng"   id="dest_lng"   />
+  <button type="submit" class="btn btn-accent">🧭 Calculate Safest Route</button>
+  <button type="button" class="btn btn-secondary" onclick="resetMarkers()">🔄 Reset</button>
+</form>
+
+{% if route %}
+<div class="route-result">
+  <h3>Route Details</h3>
+  <div class="route-meta">
+    <div class="meta-item">
+      <div class="label">Safety Score</div>
+      <div class="value">
+        <span class="score-badge {{ 'score-high' if route.avg_safety >= 65 else ('score-medium' if route.avg_safety >= 40 else 'score-low') }}" style="display:inline-flex;">
+          {{ route.avg_safety }}
+        </span>
+      </div>
+      <div class="unit">out of 100</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Confidence</div>
+      <div class="value">{{ route.avg_confidence }}<span style="font-size:.9rem;">%</span></div>
+      <div class="unit">data quality</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Distance</div>
+      <div class="value">{{ (route.total_distance_m / 1000)|round(2) }}</div>
+      <div class="unit">km</div>
+    </div>
+    <div class="meta-item">
+      <div class="label">Segments</div>
+      <div class="value">{{ route.num_segments }}</div>
+      <div class="unit">road sections</div>
+    </div>
+  </div>
+
+  {% if twins and twins > 0 %}
+  <div style="background:#eafaf1; border:1px solid #a9dfbf; border-radius:6px; padding:10px 14px; margin-top:12px;">
+    🛡️ <strong>{{ twins }} verified traveller{{ 's' if twins > 1 else '' }}</strong> nearby on a similar route.
+  </div>
+  {% endif %}
+
+  <p style="font-size:.82rem; color:var(--clr-muted); margin-top:12px;">
+    ⚠️ Safety score is an estimate. Confidence reflects data availability for this route.
+    Always stay alert and trust your instincts.
+  </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window._MAP_CENTER = {{ map_center | tojson }};
+  window._MAP_ZOOM   = {{ map_zoom }};
+</script>
+<script src="{{ url_for('static', filename='js/route.js') }}"></script>
+<script>
+  initRouteMap(
+    {{ geojson | safe if geojson else 'null' }},
+    {{ origin      | tojson if origin      else 'null' }},
+    {{ destination | tojson if destination else 'null' }}
+  );
+  {% if route %}
+    startLocationTracking({{ route.path_nodes | tojson }});
+  {% endif %}
+</script>
+{% endblock %}

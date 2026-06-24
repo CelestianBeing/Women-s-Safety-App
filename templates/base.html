@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Safety Route Planner{% endblock %}</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet.heat (no CSS needed) -->
+  <!-- App styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="/">🛡️ SafeRoute</a>
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
+  <div class="nav-links" id="navLinks">
+    {% if current_user.is_authenticated %}
+      <a href="/dashboard"  {% if request.path == '/dashboard'  %}class="active"{% endif %}>Dashboard</a>
+      <a href="/plan_route" {% if request.path == '/plan_route' %}class="active"{% endif %}>Plan Route</a>
+      <a href="/heatmap"    {% if request.path == '/heatmap'    %}class="active"{% endif %}>Heatmap</a>
+      <a href="/report"     {% if request.path == '/report'     %}class="active"{% endif %}>Report</a>
+      <a href="/guardians"  {% if request.path == '/guardians'  %}class="active"{% endif %}>Guardians</a>
+      <span class="nav-user">{{ current_user.username }}</span>
+      <a href="/logout" class="btn-outline">Logout</a>
+    {% else %}
+      <a href="/login">Login</a>
+      <a href="/register" class="btn-primary">Register</a>
+    {% endif %}
+  </div>
+</nav>
+
+{% if current_user.is_authenticated %}
+<button id="sosBtn" class="sos-fab" title="Send SOS to guardians" onclick="triggerSOS()">
+  🆘 SOS
+</button>
+{% endif %}
+
+<main class="content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">
+            {{ message }}
+            <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <p>⚠️ Safety scores are <strong>estimates only</strong>. Always trust your own judgement.</p>
+</footer>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+<div id="sos-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>🆘 Send SOS Alert?</h2>
+    <p>This will notify all your guardians with your last known location.</p>
+    <div class="modal-actions">
+      <button class="btn-danger" onclick="confirmSOS()">Yes, send SOS</button>
+      <button class="btn-outline" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

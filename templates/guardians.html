@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Guardians — Safety Route Planner{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:6px;">🛡️ My Guardians</h1>
+<p class="text-muted" style="margin-bottom:20px;">
+  Guardians receive an email alert when you press the SOS button. Add trusted contacts here.
+</p>
+
+<div class="card" style="max-width:480px;">
+  <div class="card-header">Add a Guardian</div>
+  <form method="POST" action="/guardians">
+    <div class="form-group">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" maxlength="80" placeholder="e.g. Mum" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label for="email">Email address <span style="color:var(--clr-danger);">*</span></label>
+      <input type="email" id="email" name="email" required placeholder="guardian@example.com" />
+    </div>
+    <button type="submit" class="btn btn-accent">Add Guardian</button>
+  </form>
+</div>
+
+{% if guardians %}
+<div class="card">
+  <div class="card-header">Your Guardians ({{ guardians | length }})</div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Added</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for g in guardians %}
+      <tr>
+        <td>{{ g.name or '—' }}</td>
+        <td>{{ g.guardian_email }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ g.created_at.strftime('%d %b %Y') }}</td>
+        <td>
+          <form method="POST" action="/guardians/{{ g.id }}/delete"
+                onsubmit="return confirm('Remove {{ g.name or g.guardian_email }}?')">
+            <button type="submit" class="btn btn-secondary" style="padding:4px 10px; font-size:.82rem;">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align:center; color:var(--clr-muted);">
+  <p>No guardians added yet. Add a trusted contact above so they can be alerted in an emergency.</p>
+</div>
+{% endif %}
+{% endblock %}
